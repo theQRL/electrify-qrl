@@ -1,5 +1,5 @@
 {
-  "name": "electrify-qrl",
+  "name": "@theqrl/electrify-qrl",
   "version": "1.0.0",
   "main": "lib/index.js",
   "bin": {
