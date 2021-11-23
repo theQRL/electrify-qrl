@@ -1,6 +1,6 @@
 {
   "name": "@theqrl/electrify-qrl",
-  "version": "1.0.2",
+  "version": "1.1.1",
   "main": "lib/index.js",
   "bin": {
     "electrify": "bin/cli.js"
@@ -20,14 +20,14 @@
   "license": "MIT",
   "dependencies": {
     "commander": "^2.10.0",
-    "electron": "10.1.7",
-    "electron-packager": "15.2.0",
+    "electron": "^16.0.1",
+    "electron-packager": "^15.4.0",
     "fs-extra": "^4.0.0",
-    "lodash": "^4.17.11",
+    "lodash": "^4.17.21",
     "plist": "^3.0.1",
     "server-destroy": "^1.0.1",
     "shelljs": "^0.7.8",
-    "sockjs": "^0.3.15"
+    "sockjs": "^0.3.21"
   },
   "repository": {
     "type": "git",
