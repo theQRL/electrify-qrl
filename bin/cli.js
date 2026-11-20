@@ -69,7 +69,7 @@ if(process.argv.length == 2 || -1 == 'run|bundle|package'.indexOf(cmd) ){
 function run_electron(){
   var input         = program.input || process.cwd();
   var electrify_dir = join(input, '.electrify');
-  var electron_path = find_electron(input, electrify_dir);
+  var electron_path = find_electron(electrify_dir);
   var settings      = parse_meteor_settings(true);
 
   if(settings)
@@ -86,24 +86,20 @@ function run_electron(){
   });
 }
 
-// electron belongs to the app (`.electrify/node_modules`), so the app decides
-// which version it runs on -- falls back to the meteor project's (node looks
-// up the tree by itself), and then to whatever sits alongside electrify
-function find_electron(input, electrify_dir){
-  var candidates = [electrify_dir, __dirname];
-
-  for(var i = 0; i < candidates.length; i++) {
-    try {
-      return require(require.resolve('electron', {paths: [candidates[i]]}));
-    } catch(err) { /* not here, try next */ }
+// electron belongs to the app: the one installed in `.electrify/node_modules`
+// is what gets run here, and it is the same one `electrify package` bundles
+// (see Electron.prototype.version)
+function find_electron(electrify_dir){
+  try {
+    return require(path.resolve(electrify_dir, 'node_modules', 'electron'));
+  } catch(err) {
+    console.error([
+      'electron not found, install it inside your .electrify folder:',
+      '  cd ' + electrify_dir,
+      '  npm install --save-exact electron'
+    ].join('\n'));
+    process.exit(1);
   }
-
-  console.error([
-    'electron not found, install it inside your .electrify folder:',
-    '  cd ' + electrify_dir,
-    '  npm install --save-exact electron'
-  ].join('\n'));
-  process.exit(1);
 }
 
 function is_meteor_app(){

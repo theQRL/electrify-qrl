@@ -42,11 +42,33 @@ npm install --save-exact @theqrl/electrify-qrl@2.0.0
 Electrify warns at build time when the version in `.electrify/package.json`
 differs from the cli's.
 
+An app scaffolded by 1.x may still depend on the unscoped `electrify-qrl`
+package, which is a different, older package. In that case, inside `.electrify`:
+
+````shell
+npm uninstall electrify-qrl
+````
+
+and change the one `require` in `.electrify/index.js`, leaving the rest of the
+file as it is:
+
+````javascript
+// before
+const electrify = require('electrify-qrl')(__dirname);
+
+// after
+const electrify = require('@theqrl/electrify-qrl')(__dirname);
+````
+
+Both `npm` commands update `.electrify/package-lock.json`.
+
 ### 3. Add Electron to the app
 
 Electrify no longer depends on Electron. 1.1.3 started the app with its own
 copy and always packaged Electron 16.0.1, whatever version the app had
-installed. 2.0.0 uses the Electron in `.electrify/node_modules` for both.
+installed. 2.0.0 uses the Electron in `.electrify/node_modules` for both, and
+looks nowhere else: an Electron installed in the Meteor project or globally is
+ignored.
 
 ````shell
 cd .electrify
@@ -55,7 +77,7 @@ npm install --save-exact electron
 
 Pin an exact version. If Electron isn't installed at packaging time, electrify
 falls back to the version written in `.electrify/package.json`, and stops with
-an error when that isn't a plain version number.
+an error when that is a range such as `^40.0.0` instead of an exact version.
 
 An app that never chose an Electron version moves from Electron 16 to a
 current release in one step. Check `.electrify/index.js` against
@@ -132,8 +154,12 @@ These need no action, but they may show up in builds or in the app.
     and its output is always shown.
   * When the `CI` environment variable is set, the output of the other commands
     electrify runs is shown as well.
-  * Meteor's server `node_modules` are copied into the bundle only when the
-    Meteor release ships them; a warning is logged otherwise.
+  * The bundled server's `node_modules` are still copied from the Meteor
+    install. When they can't be found there, electrify runs
+    `meteor npm install` inside the bundle, and stops if that fails.
+  * Bundling stops before the Meteor build when there is no node binary at
+    `.electrify/bin/node` and none in the Meteor install to copy there. 1.1.3
+    produced an app that could not start its server.
   * Electrify no longer fails to start when it can't locate a global Meteor
     install. It then looks for Meteor's `dev_bundle` inside the project's
     `.meteor/local`.
@@ -144,8 +170,16 @@ These need no action, but they may show up in builds or in the app.
 
   * The socket server listens on `127.0.0.1` only. It used to accept
     connections on every network interface.
-  * Electrify waits up to 60 seconds for Meteor to answer, then logs a warning
-    and carries on. It used to wait forever.
+  * Electrify waits up to 60 seconds for Meteor to answer. It used to wait
+    forever. After that, the `electrify.start()` callback is still called with
+    the url, plus an error as its second argument, so the app can load the url
+    anyway, retry, or show an error:
+
+    ````javascript
+    electrify.start(function(meteor_root_url, err) {
+      if (err) { /* Meteor has not answered yet */ }
+    });
+    ````
   * Apps packaged with `asar` are supported, provided the `app` and `bin`
     folders are unpacked:
 

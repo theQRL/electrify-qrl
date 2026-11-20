@@ -20,9 +20,22 @@ test('electron version: the installed one wins over the declared one', function(
   assert.strictEqual($.electron.version(), '40.4.1');
 });
 
-test('electron version: falls back to the declared one', function(t) {
-  var $ = electrify(t, {name: 'my-app', dependencies: {electron: '^40.0.0'}});
-  assert.strictEqual($.electron.version(), '40.0.0');
+test('electron version: falls back to an exactly declared one', function(t) {
+  ['40.4.1', '=40.4.1', 'v40.4.1'].forEach(function(spec) {
+    var $ = electrify(t, {name: 'my-app', dependencies: {electron: spec}});
+    assert.strictEqual($.electron.version(), '40.4.1');
+  });
+
+  var $ = electrify(t, {name: 'my-app', dependencies: {electron: '41.0.0-beta.2'}});
+  assert.strictEqual($.electron.version(), '41.0.0-beta.2');
+});
+
+test('electron version: a declared range is not a version to package', function(t) {
+  ['^40.0.0', '~40.1.0', '>39.0.0', '<41.0.0', '40.x', '39.0.0 || 40.0.0', 'latest'].forEach(function(spec) {
+    assert.throws(function(){
+      electrify(t, {name: 'my-app', dependencies: {electron: spec}}).electron.version();
+    }, /cannot tell which electron version/, spec);
+  });
 });
 
 test('electron version: fails when the app has no usable electron', function(t) {
@@ -30,9 +43,21 @@ test('electron version: fails when the app has no usable electron', function(t) 
     electrify(t, {name: 'my-app'}).electron.version();
   }, /cannot tell which electron version/);
 
-  assert.throws(function(){
-    electrify(t, {name: 'my-app', dependencies: {electron: 'latest'}}).electron.version();
-  }, /cannot tell which electron version/);
+});
+
+test('bundling stops early when the app has no node binary', function(t) {
+  var $ = electrify(t);
+  var app = require('../../lib/app')($);
+
+  assert.throws(function(){ app.require_node(function(){}); }, /no node binary at/);
+
+  var node_path = $.plugins.get('nodejs').app_node_path;
+  fs.mkdirSync(path.dirname(node_path), {recursive: true});
+  fs.writeFileSync(node_path, '');
+
+  var called = false;
+  app.require_node(function(){ called = true; });
+  assert.ok(called);
 });
 
 test('socket plugin is off, and methods() says why, without sockjs', function(t) {
@@ -99,26 +124,75 @@ test('meteor_ready waits until the server answers', function(t, done) {
         server.listen(port, '127.0.0.1', function(){ listening = true; });
       }, 300);
 
-      $.plugins.get('nodejs').meteor_ready('http://127.0.0.1:' + port, function(){
+      var nodejs = $.plugins.get('nodejs');
+      nodejs.meteor_ready('http://127.0.0.1:' + port, function(err){
         assert.ok(listening);
+        assert.ifError(err);
+        assert.strictEqual(nodejs.ready_error, null);
         done();
       });
     });
   });
 });
 
-test('meteor_ready gives up after its time limit', function(t, done) {
+test('meteor_ready reports an error after its time limit', function(t, done) {
   var $ = electrify(t);
   var probe = http.createServer().listen(0, '127.0.0.1', function(){
     var port = probe.address().port;
     probe.close(function(){
       var started = Date.now();
       // nothing ever listens on that port
-      $.plugins.get('nodejs').meteor_ready('http://127.0.0.1:' + port, function(){
-        assert.ok(Date.now() - started >= 250);
-        done();
+      var nodejs = $.plugins.get('nodejs');
+      var calls = 0;
+      nodejs.meteor_ready('http://127.0.0.1:' + port, function(err){
+        calls++;
+        assert.ok(Date.now() - started >= 240);
+        assert.match(err.message, /did not answer/);
+        assert.strictEqual(nodejs.ready_error, err);
+        // no retry may fire the callback again
+        setTimeout(function(){ assert.strictEqual(calls, 1); done(); }, 300);
       }, 250);
     });
+  });
+});
+
+test('meteor_ready enforces its limit while a probe is still pending', function(t, done) {
+  var $ = electrify(t);
+  // accepts connections, never answers
+  var sockets = [];
+  var server = http.createServer(function(){});
+  server.on('connection', function(socket){ sockets.push(socket); });
+  t.after(function(){
+    sockets.forEach(function(socket){ socket.destroy(); });
+    server.close();
+  });
+
+  server.listen(0, '127.0.0.1', function(){
+    var started = Date.now();
+    $.plugins.get('nodejs').meteor_ready('http://127.0.0.1:' + server.address().port, function(err){
+      var took = Date.now() - started;
+      assert.ok(err);
+      // well short of the 1500ms a single probe is allowed
+      assert.ok(took >= 240 && took < 1000, 'took ' + took + 'ms');
+      done();
+    }, 250);
+  });
+});
+
+test('start() hands the readiness error to its callback', function(t, done) {
+  var $ = electrify(t);
+  var nodejs = $.plugins.get('nodejs');
+
+  $.env.app.is_packaged = true;
+  $.plugins.start = function(started) {
+    nodejs.ready_error = new Error('late');
+    started();
+  };
+
+  $.start(function(url, err) {
+    assert.strictEqual(url, nodejs.config.ROOT_URL);
+    assert.strictEqual(err.message, 'late');
+    done();
   });
 });
 
