@@ -45,6 +45,31 @@ test('electron version: fails when the app has no usable electron', function(t) 
 
 });
 
+test('the running app never installs dependencies, the cli steps do', function(t) {
+  var $ = electrify(t);
+  var steps = [];
+
+  $.app.ensure_deps = function(next){ steps.push('ensure_deps'); next(); };
+  ['auto_load', 'acquire', 'start'].forEach(function(name) {
+    $.plugins[name] = function(next){ steps.push(name); next(); };
+  });
+  $.app.start_meteor = function(next){ steps.push('start_meteor'); next(); };
+  $.app.require_node = function(next){ steps.push('require_node'); next(); };
+  $.app.bundle_meteor = function(next){ steps.push('bundle_meteor'); next(); };
+  $.scaffold.prepare = function(){};
+
+  $.app.run();
+  assert.deepStrictEqual(steps, ['auto_load', 'acquire', 'start', 'start_meteor']);
+
+  steps = [];
+  $.app.init();
+  assert.deepStrictEqual(steps, ['ensure_deps', 'acquire']);
+
+  steps = [];
+  $.app.bundle();
+  assert.deepStrictEqual(steps, ['ensure_deps', 'auto_load', 'acquire', 'require_node', 'bundle_meteor']);
+});
+
 test('bundling stops early when the app has no node binary', function(t) {
   var $ = electrify(t);
   var app = require('../../lib/app')($);

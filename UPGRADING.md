@@ -150,6 +150,9 @@ These need no action, but they may show up in builds or in the app.
     run now stop electrify with a non-zero exit code. So does a bad `--input`,
     `--output`, `--temp` or `--settings` path. Scripts that relied on electrify
     carrying on, or exiting 0, will now stop.
+  * `electrify run` installs the `.electrify` dependencies before it starts
+    Electron, whether or not `.electrify` already exists. The running app no
+    longer installs them itself, which 1.1.3 did on every start.
   * `meteor build` is run without the empty `--server` argument 1.1.3 passed,
     and its output is always shown.
   * When the `CI` environment variable is set, the output of the other commands

@@ -108,11 +108,13 @@ function is_meteor_app(){
   return fs.existsSync(meteor_dir);
 }
 
+// dependencies are installed here, before electron starts: it cannot be
+// launched without them, and must not reinstall them while running
 function run(){
-  if(has_local_electrify())
-    run_electron();
-  else if(is_meteor_app())
+  if(is_meteor_app())
     electrify().app.init(run_electron);
+  else if(has_local_electrify())
+    run_electron();
 }
 
 function bundle(){
