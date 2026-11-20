@@ -29,7 +29,7 @@ program
       'electrify package -- <electron-packager-options>',
       '',
       '# more info about electron packager options:',
-      '# ~> https://www.npmjs.com/package/electron-packager'
+      '# ~> https://www.npmjs.com/package/@electron/packager'
     ].join('\n    ') + '\n');
   });
 
@@ -69,7 +69,7 @@ if(process.argv.length == 2 || -1 == 'run|bundle|package'.indexOf(cmd) ){
 function run_electron(){
   var input         = program.input || process.cwd();
   var electrify_dir = join(input, '.electrify');
-  var electron_path = require('electron');
+  var electron_path = find_electron(electrify_dir);
   var settings      = parse_meteor_settings(true);
 
   if(settings)
@@ -86,17 +86,35 @@ function run_electron(){
   });
 }
 
+// electron belongs to the app: the one installed in `.electrify/node_modules`
+// is what gets run here, and it is the same one `electrify package` bundles
+// (see Electron.prototype.version)
+function find_electron(electrify_dir){
+  try {
+    return require(path.resolve(electrify_dir, 'node_modules', 'electron'));
+  } catch(err) {
+    console.error([
+      'electron not found, install it inside your .electrify folder:',
+      '  cd ' + electrify_dir,
+      '  npm install --save-exact electron'
+    ].join('\n'));
+    process.exit(1);
+  }
+}
+
 function is_meteor_app(){
   var input = program.input || process.cwd();
   var meteor_dir = join(input, '.meteor');
   return fs.existsSync(meteor_dir);
 }
 
+// dependencies are installed here, before electron starts: it cannot be
+// launched without them, and must not reinstall them while running
 function run(){
-  if(has_local_electrify())
-    run_electron();
-  else if(is_meteor_app())
+  if(is_meteor_app())
     electrify().app.init(run_electron);
+  else if(has_local_electrify())
+    run_electron();
 }
 
 function bundle(){
@@ -115,24 +133,24 @@ function electrify() {
   // validates input dir (app-root folder)
   if(program.input && !fs.existsSync(program.input)) {
     console.error('input folder doesn\'t exist\n  ' + program.input);
-    process.exit();
+    process.exit(1);
   }
   
   input = program.input || process.cwd();
 
   if(!is_meteor_app()) {
     console.error('not a meteor app\n  ' + input);
-    process.exit();
+    process.exit(1);
   }
 
   if(program.output && !fs.existsSync(program.output)) {
     console.error('output folder doesn\'t exist\n  ' + program.output);
-    process.exit();
+    process.exit(1);
   }
 
   if(program.temp && !fs.existsSync(program.temp)) {
     console.error('temp folder doesn\'t exist\n  ' + program.temp);
-    process.exit();
+    process.exit(1);
   }
 
   var buildSettings = _.pick(program, ['temp', 'arch', 'platform']);
@@ -152,7 +170,7 @@ function has_local_electrify(){
   // validates input dir (app-root folder)
   if(program.input && !fs.existsSync(program.input)) {
     console.error('input folder doesn\'t exist\n  ' + program.input);
-    process.exit();
+    process.exit(1);
   }
   
   var input = program.input || process.cwd();
@@ -173,7 +191,7 @@ function parse_meteor_settings(return_path_only) {
 
   if(!fs.existsSync(settings)) {
     log('settings file not found: ', relative);
-    process.exit();
+    process.exit(1);
   }
 
   if(return_path_only)
