@@ -29,7 +29,7 @@ program
       'electrify package -- <electron-packager-options>',
       '',
       '# more info about electron packager options:',
-      '# ~> https://www.npmjs.com/package/electron-packager'
+      '# ~> https://www.npmjs.com/package/@electron/packager'
     ].join('\n    ') + '\n');
   });
 
@@ -69,7 +69,7 @@ if(process.argv.length == 2 || -1 == 'run|bundle|package'.indexOf(cmd) ){
 function run_electron(){
   var input         = program.input || process.cwd();
   var electrify_dir = join(input, '.electrify');
-  var electron_path = require('electron');
+  var electron_path = find_electron(input, electrify_dir);
   var settings      = parse_meteor_settings(true);
 
   if(settings)
@@ -84,6 +84,26 @@ function run_electron(){
     stdio: 'inherit',
     env: _.extend(settings, process.env)
   });
+}
+
+// electron belongs to the app (`.electrify/node_modules`), so the app decides
+// which version it runs on -- falls back to the meteor project's (node looks
+// up the tree by itself), and then to whatever sits alongside electrify
+function find_electron(input, electrify_dir){
+  var candidates = [electrify_dir, __dirname];
+
+  for(var i = 0; i < candidates.length; i++) {
+    try {
+      return require(require.resolve('electron', {paths: [candidates[i]]}));
+    } catch(err) { /* not here, try next */ }
+  }
+
+  console.error([
+    'electron not found, install it inside your .electrify folder:',
+    '  cd ' + electrify_dir,
+    '  npm install --save-exact electron'
+  ].join('\n'));
+  process.exit(1);
 }
 
 function is_meteor_app(){
@@ -115,24 +135,24 @@ function electrify() {
   // validates input dir (app-root folder)
   if(program.input && !fs.existsSync(program.input)) {
     console.error('input folder doesn\'t exist\n  ' + program.input);
-    process.exit();
+    process.exit(1);
   }
   
   input = program.input || process.cwd();
 
   if(!is_meteor_app()) {
     console.error('not a meteor app\n  ' + input);
-    process.exit();
+    process.exit(1);
   }
 
   if(program.output && !fs.existsSync(program.output)) {
     console.error('output folder doesn\'t exist\n  ' + program.output);
-    process.exit();
+    process.exit(1);
   }
 
   if(program.temp && !fs.existsSync(program.temp)) {
     console.error('temp folder doesn\'t exist\n  ' + program.temp);
-    process.exit();
+    process.exit(1);
   }
 
   var buildSettings = _.pick(program, ['temp', 'arch', 'platform']);
@@ -152,7 +172,7 @@ function has_local_electrify(){
   // validates input dir (app-root folder)
   if(program.input && !fs.existsSync(program.input)) {
     console.error('input folder doesn\'t exist\n  ' + program.input);
-    process.exit();
+    process.exit(1);
   }
   
   var input = program.input || process.cwd();
@@ -173,7 +193,7 @@ function parse_meteor_settings(return_path_only) {
 
   if(!fs.existsSync(settings)) {
     log('settings file not found: ', relative);
-    process.exit();
+    process.exit(1);
   }
 
   if(return_path_only)

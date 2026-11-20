@@ -7,13 +7,21 @@ Based on https://github.com/Mairu/meteor-electrify
 ## TL;DR
 
 ````shell
-npm install -g electrify-qrl
+npm install -g @theqrl/electrify-qrl
 cd /your/meteor/app
 electrify
 ````
 ## Compatibility
 
 Works on all Meteor's supported [platforms](https://github.com/meteor/meteor/wiki/Supported-Platforms).
+
+Requires Node.js 22.12 or newer.
+
+## Upgrading from 1.x
+
+Version 2 needs Node.js 22.12+, takes Electron from your app instead of
+bundling it, and packages with `@electron/packager`. See
+[UPGRADING.md](UPGRADING.md) for the full path from 1.1.3.
 
 ## Help
 
@@ -54,14 +62,14 @@ $ electrify -h
     electrify package -- <electron-packager-options>
     
     # more info about electron packager options:
-    # ~> https://www.npmjs.com/package/electron-packager
+    # ~> https://www.npmjs.com/package/@electron/packager
 
 ````
 
 ## Installation
 
 ````shell
-npm install -g electrify-qrl
+npm install -g @theqrl/electrify-qrl
 ````
 
 > For invoking Electron methods from Meteor, you'll also need to install the
@@ -82,30 +90,31 @@ cd /your/meteor/app
 electrify package
 ````
 
-The packaging process is done under the hood using `electron-packager`
+The packaging process is done under the hood using the `@electron/packager`
 npm package. The following variables are automatically set:
 
   * `--out` -- *comes from cli option [-o, --out]*
   * `--arch` -- *comes from system [current arch]*
   * `--platform` -- *comes from system [current platform]*
   * `--app-version` -- *comes from .electrify/package.json [current app version]*
-  * `--electron-version` -- *comes from the used electron npm package*
+  * `--electron-version` -- *comes from the electron installed in .electrify
+    (or, when it isn't installed, the version in .electrify/package.json)*
   * `--tmpdir` -- *disabled*
 
 You can overwrite these default values and also set others by passing custom
-arguments directly to `electron-packager` after `--`, i.e:
+arguments directly to `@electron/packager` after `--`, i.e:
 
 ````shell
 cd /your/meteor/app
 electrify package -- --icon=/folder/x/img/icon.png --app-version=x.y.z
 ````
 
-All the available options for `electron-packager` can be found here:
-https://github.com/electron-userland/electron-packager/blob/master/usage.txt
+All the available options for `@electron/packager` can be found here:
+https://electron.github.io/packager/main/
 
 
 Alternatively you can add an electronPackager object in package.json of the .electrify folder
-with [options for the electron-packager](https://github.com/electron-userland/electron-packager/blob/master/docs/api.md). For the icon property it is possible to provide an object
+with [options for @electron/packager](https://electron.github.io/packager/main/). For the icon property it is possible to provide an object
 instead of string to define different icons for the different platforms.
 f.e.
 ```json
@@ -176,8 +185,13 @@ structure will be like this:
 
 This is a pure Electron project, so you can use the whole Electron API from JS
 files in this folder. Also, you can install electron dependencies and store them
-in the `package.json` file. Note that the `electrify` package is itself a
-dependency.
+in the `package.json` file. Note that the `@theqrl/electrify-qrl` package is
+itself a dependency, and so is `electron`: the version listed there is the one
+your app runs on and is packaged with.
+
+A packaged app starts its Meteor server with the node binary at
+`.electrify/bin/node`. Electrify copies it from your Meteor install when the
+file is missing; put your own there to choose a different one.
 
 See this folder as the `desktop layer` for your Meteor app. Remember to check
 out the `index.js` file, it constains the electrify start/stop usage.
@@ -199,7 +213,7 @@ Let's see how one would be able to do a simple SplashScreen:
 
 ````javascript
 const { app, BrowserWindow } = require('electron');
-const electrify = require('electrify-qrl')(__dirname);
+const electrify = require('@theqrl/electrify-qrl')(__dirname);
 
 let window;
 let splash;
@@ -234,6 +248,16 @@ app.on('ready', function() {
 ## Meteor x Electron integration
 
 You can seamlessly call Electron methods from your Meteor's client/server code.
+
+This goes through a local socket server which needs the `sockjs` package, an
+optional dependency you install yourself:
+
+````shell
+cd /your/meteor/app/.electrify
+npm install sockjs
+````
+
+Without it no socket server is started, and `electrify.methods()` throws.
 
 Define your Electron methods inside the `.electrify` folder:
 
